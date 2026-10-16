@@ -1,3 +1,7 @@
+## 0.1.1
+
+- Shorter package description, within pub.dev's 180-character limit.
+
 ## 0.1.0
 
 - First release: openui-lang parser and streaming evaluator (`$state`,
