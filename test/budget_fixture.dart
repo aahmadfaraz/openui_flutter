@@ -1,0 +1,49 @@
+/// A real answer from the dev backend (2026-10-16, "semester monthly budget"
+/// prompt): one markdown sentence, then the openui-lang program unfenced.
+const budgetAnswer =
+    r'''You're not overspending: planned outgoings are £1,420 against £1,480 income, leaving £60.
+
+root = Stack([header, row1, row2, detailsCard, next], "column", "l")
+header = Stack([title, verdict], "column", "s")
+title = TextContent("Semester monthly budget", "large-heavy")
+verdict = Callout("success", "Not overspending", "£1,420 planned against £1,480 income leaves £60 unallocated.")
+row1 = Stack([donutCard, splitCard], "row", "m", "stretch", "start", true)
+row2 = Stack([radialCard, incomeCard], "row", "m", "stretch", "start", true)
+donutCard = Card([donutStack])
+splitCard = Card([splitStack])
+radialCard = Card([radialStack])
+incomeCard = Card([incomeStack])
+detailsCard = Card([detailsStack])
+donutStack = Stack([donutHeader, donutChart])
+splitStack = Stack([splitHeader, splitChart, splitNote])
+radialStack = Stack([radialHeader, radialChart])
+incomeStack = Stack([incomeHeader, incomeChart, incomeNote])
+detailsStack = Stack([detailsHeader, kv, leftoverNote])
+donutHeader = CardHeader("Where the money goes", "All 12 categories · £1,420")
+splitHeader = CardHeader("Essentials, lifestyle, savings", "Semi-circle of planned outgoings")
+radialHeader = CardHeader("Top 5 categories", "Largest monthly amounts")
+incomeHeader = CardHeader("Income split", "£1,480 total")
+detailsHeader = CardHeader("Every category", "Monthly plan in GBP")
+donutChart = PieChart(catLabels, catValues, "donut")
+splitChart = PieChart(splitLabels, splitValues, "pie", "semiCircular")
+radialChart = RadialChart(topLabels, topValues)
+incomeChart = SingleStackedBarChart(incomeLabels, incomeValues)
+splitNote = TextContent("Essentials £980: rent, groceries, transport, phone, textbooks. Lifestyle £270: eating out, gym, streaming, clothes, social. Savings and emergency fund £170.", "small")
+incomeNote = TextContent("Student loan is about 64% of income; the part-time job is about 36%.", "small")
+leftoverNote = TextContent("Category total is £1,420. The remaining £60 of income is not assigned to a category.", "small")
+kv = EntityList(rows, "default", headerRow, footerRow)
+next = Buttons([cutBtn, rateBtn, weekBtn])
+cutBtn = Button("Where can I cut?", Action([@ToAssistant("Where can I cut this monthly budget without touching rent or savings?")]), "secondary")
+rateBtn = Button("Is this savings rate ok?", Action([@ToAssistant("Is saving £170 a month plus £60 leftover a good rate on £1,480 income?")]), "secondary")
+weekBtn = Button("Make a weekly plan", Action([@ToAssistant("Turn this monthly budget into a weekly spending plan in GBP.")]), "secondary")
+catLabels = ["Rent", "Groceries", "Transport", "Phone & internet", "Textbooks", "Eating out", "Gym", "Streaming", "Clothes", "Savings", "Emergency fund", "Social"]
+catValues = [620, 210, 55, 35, 60, 95, 28, 22, 40, 120, 50, 85]
+splitLabels = ["Essentials", "Lifestyle", "Savings & emergency"]
+splitValues = [980, 270, 170]
+topLabels = ["Rent", "Groceries", "Savings", "Eating out", "Social"]
+topValues = [620, 210, 120, 95, 85]
+incomeLabels = ["Student loan", "Part-time job"]
+incomeValues = [950, 530]
+headerRow = {"left": "Category", "right": "Amount (£)", "rightVariant": "number"}
+footerRow = {"left": "Total", "right": "1420", "rightVariant": "number"}
+rows = [{"left": "Rent", "right": "620", "rightVariant": "number"}, {"left": "Groceries", "right": "210", "rightVariant": "number"}, {"left": "Transport (bus pass)", "right": "55", "rightVariant": "number"}, {"left": "Phone + internet", "right": "35", "rightVariant": "number"}, {"left": "Textbooks & course materials", "right": "60", "rightVariant": "number"}, {"left": "Eating out / coffee", "right": "95", "rightVariant": "number"}, {"left": "Gym membership", "right": "28", "rightVariant": "number"}, {"left": "Streaming subscriptions", "right": "22", "rightVariant": "number"}, {"left": "Clothes", "right": "40", "rightVariant": "number"}, {"left": "Savings", "right": "120", "rightVariant": "number"}, {"left": "Emergency fund", "right": "50", "rightVariant": "number"}, {"left": "Social / going out", "right": "85", "rightVariant": "number"}]''';
