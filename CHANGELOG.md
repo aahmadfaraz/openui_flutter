@@ -1,3 +1,7 @@
+## 0.1.2
+
+- LICENSE names the copyright holder (Ahmad Faraz).
+
 ## 0.1.1
 
 - Shorter package description, within pub.dev's 180-character limit.
