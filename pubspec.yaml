@@ -3,7 +3,7 @@ description: >-
   Render OpenUI Lang, the streaming generative UI language, as native Flutter
   widgets: layouts, tables, charts, forms, cards and icons, plus custom
   components.
-version: 0.1.3
+version: 0.1.4
 repository: https://github.com/aahmadfaraz/openui_flutter
 issue_tracker: https://github.com/aahmadfaraz/openui_flutter/issues
 

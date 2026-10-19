@@ -33,6 +33,12 @@ Future<void> _pump(
     ),
   );
   await tester.pump();
+  // A streaming view types its text out over a few frames.
+  if (isStreaming) {
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+  }
 }
 
 Future<void> _tap(WidgetTester tester, Finder finder) async {
@@ -426,6 +432,121 @@ void main() {
       openUiIcon('no-such-icon', category: 'fitness'),
       LucideIcons.dumbbell,
     );
+  });
+
+  group('streaming performance', () {
+    testWidgets('unchanged components are not rebuilt as the program grows', (
+      tester,
+    ) async {
+      var builds = 0;
+      final library = OpenUiLibrary.standard.extend([
+        OpenUiComponent(
+          'Probe',
+          const ['label'],
+          builder: (context, el) {
+            builds++;
+            return Text(el.string('label') ?? '');
+          },
+        ),
+      ]);
+      Future<void> pump(String program) => tester.pumpWidget(
+        _host(
+          OpenUiView(
+            program: program,
+            library: library,
+            isStreaming: true,
+            smoothReveal: false,
+          ),
+        ),
+      );
+      await pump('root = Stack([a, b])\na = Probe("first")');
+      expect(builds, 1);
+      // More of the program streams in: `a` is unchanged, so not rebuilt.
+      await pump('root = Stack([a, b])\na = Probe("first")\nb = Text("x")');
+      await pump(
+        'root = Stack([a, b])\na = Probe("first")\nb = Text("xyz more")',
+      );
+      expect(builds, 1);
+      // `a` itself changes: rebuilt once.
+      await pump('root = Stack([a, b])\na = Probe("second")\nb = Text("x")');
+      expect(builds, 2);
+      expect(find.text('second'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+    });
+
+    testWidgets('state read straight off the scope still updates', (
+      tester,
+    ) async {
+      final library = OpenUiLibrary.standard.extend([
+        OpenUiComponent(
+          'Counter',
+          const [],
+          builder: (context, el) {
+            final scope = OpenUiScope.of(context);
+            final n = (scope.readVar('__n') as int?) ?? 0;
+            return TextButton(
+              onPressed: () => scope.setVar('__n', n + 1),
+              child: Text('count $n'),
+            );
+          },
+        ),
+      ]);
+      await tester.pumpWidget(
+        _host(OpenUiView(program: 'root = Counter()', library: library)),
+      );
+      await tester.tap(find.text('count 0'));
+      await tester.pump();
+      expect(find.text('count 1'), findsOneWidget);
+    });
+
+    testWidgets('streamed text types out instead of landing at once', (
+      tester,
+    ) async {
+      const text = 'The quick brown fox jumps over the lazy dog again';
+      await tester.pumpWidget(
+        _host(
+          const OpenUiView(
+            program: 'root = TextContent("$text")',
+            isStreaming: true,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(
+        find.textContaining('The', findRichText: true),
+        findsWidgets,
+        reason: 'some text has typed in',
+      );
+      expect(
+        find.text(text, findRichText: true),
+        findsNothing,
+        reason: 'but not all of it yet',
+      );
+      // Real frames (a single 2s pump is one frame, and the reveal never
+      // dumps a backlog in one frame).
+      for (var i = 0; i < 120; i++) {
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      expect(find.text(text, findRichText: true), findsOneWidget);
+    });
+
+    test('openUiSame compares structure, not identity', () {
+      OpenUiElement el(String label) => OpenUiElement('Text', {
+        'text': label,
+        'items': [1, 2, {'a': true}],
+        'action': OpenUiAction.toAssistant('go'),
+      });
+      expect(openUiSame(el('x'), el('x')), isTrue);
+      expect(openUiSame(el('x'), el('y')), isFalse);
+      expect(
+        openUiSame(
+          OpenUiAction.toAssistant('go'),
+          OpenUiAction.toAssistant('stop'),
+        ),
+        isFalse,
+      );
+    });
   });
 
   group('upstream parity', () {

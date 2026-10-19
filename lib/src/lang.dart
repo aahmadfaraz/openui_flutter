@@ -691,6 +691,99 @@ class OpenUiAction {
   );
 }
 
+// ── Equality ────────────────────────────────────────────────────────────────
+
+/// Whether two evaluated values are structurally the same — what lets a
+/// re-parse on every streamed chunk skip rebuilding the components that
+/// didn't change. Actions compare their (unevaluated) steps.
+bool openUiSame(Object? a, Object? b) {
+  if (identical(a, b)) return true;
+  if (a is OpenUiElement) {
+    return b is OpenUiElement &&
+        a.type == b.type &&
+        openUiSame(a.props, b.props);
+  }
+  if (a is List) {
+    if (b is! List || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!openUiSame(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  if (a is Map) {
+    if (b is! Map || a.length != b.length) return false;
+    for (final e in a.entries) {
+      if (!b.containsKey(e.key) || !openUiSame(e.value, b[e.key])) {
+        return false;
+      }
+    }
+    return true;
+  }
+  if (a is OpenUiBinding) {
+    return b is OpenUiBinding &&
+        a.name == b.name &&
+        openUiSame(a.value, b.value);
+  }
+  if (a is OpenUiAction) {
+    if (b is! OpenUiAction ||
+        a.context != b.context ||
+        a.steps.length != b.steps.length) {
+      return false;
+    }
+    for (var i = 0; i < a.steps.length; i++) {
+      final x = a.steps[i], y = b.steps[i];
+      if (x.name != y.name ||
+          !_sameNodes(x.args, y.args) ||
+          !openUiSame(x.locals, y.locals)) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return a == b;
+}
+
+bool _sameNodes(List<OpenUiNode> a, List<OpenUiNode> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (!_sameNode(a[i], b[i])) return false;
+  }
+  return true;
+}
+
+bool _sameNode(OpenUiNode a, OpenUiNode b) {
+  if (identical(a, b)) return true;
+  return switch ((a, b)) {
+    (LitNode x, LitNode y) => x.value == y.value,
+    (ArrNode x, ArrNode y) => _sameNodes(x.items, y.items),
+    (ObjNode x, ObjNode y) =>
+      x.entries.length == y.entries.length &&
+          [
+            for (var i = 0; i < x.entries.length; i++)
+              x.entries[i].$1 == y.entries[i].$1 &&
+                  _sameNode(x.entries[i].$2, y.entries[i].$2),
+          ].every((same) => same),
+    (RefNode x, RefNode y) => x.name == y.name,
+    (StateNode x, StateNode y) => x.name == y.name,
+    (CompNode x, CompNode y) => x.name == y.name && _sameNodes(x.args, y.args),
+    (BuiltinNode x, BuiltinNode y) =>
+      x.name == y.name && _sameNodes(x.args, y.args),
+    (MemberNode x, MemberNode y) =>
+      x.field == y.field && _sameNode(x.target, y.target),
+    (IndexNode x, IndexNode y) =>
+      _sameNode(x.target, y.target) && _sameNode(x.index, y.index),
+    (UnaryNode x, UnaryNode y) =>
+      x.op == y.op && _sameNode(x.operand, y.operand),
+    (BinaryNode x, BinaryNode y) =>
+      x.op == y.op && _sameNode(x.left, y.left) && _sameNode(x.right, y.right),
+    (TernaryNode x, TernaryNode y) =>
+      _sameNode(x.cond, y.cond) &&
+          _sameNode(x.then, y.then) &&
+          _sameNode(x.otherwise, y.otherwise),
+    _ => false,
+  };
+}
+
 // ── Evaluator ───────────────────────────────────────────────────────────────
 
 /// Evaluates a program's statements against the current `$state`. One

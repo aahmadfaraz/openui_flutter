@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'lang.dart';
 import 'library.dart';
+import 'reveal.dart';
 import 'theme.dart';
 import 'widgets/common.dart';
 import 'widgets/forms.dart';
@@ -81,6 +83,7 @@ class OpenUiView extends StatefulWidget {
     this.formatSubmission = openUiDefaultSubmission,
     this.initialState,
     this.onStateChanged,
+    this.smoothReveal = true,
   });
 
   /// openui-lang source. May be incomplete while [isStreaming].
@@ -112,13 +115,24 @@ class OpenUiView extends StatefulWidget {
   /// Called whenever the user changes a value or `$variable`.
   final ValueChanged<OpenUiSnapshot>? onStateChanged;
 
+  /// While streaming, type text out at a steady pace (frame by frame)
+  /// instead of showing each network chunk as it lands; structure appears
+  /// instantly. See [OpenUiReveal].
+  final bool smoothReveal;
+
   @override
   State<OpenUiView> createState() => _OpenUiViewState();
 }
 
-class _OpenUiViewState extends State<OpenUiView> {
+class _OpenUiViewState extends State<OpenUiView>
+    with SingleTickerProviderStateMixin {
   late OpenUiProgram _program;
   late String _source;
+  final _reveal = OpenUiReveal();
+  /// Created on the first reveal: history never needs one.
+  Ticker? _ticker;
+  Duration _lastTick = Duration.zero;
+  Duration _lastParse = Duration.zero;
   final _state = <String, Object?>{};
   final _forms = <String, OpenUiFormController>{};
 
@@ -126,6 +140,11 @@ class _OpenUiViewState extends State<OpenUiView> {
   /// cut off mid-stream (`"hel`) is replaced once the full statement lands
   /// (upstream store `pristine`).
   final _pristine = <String>{};
+
+  /// Bumped whenever `$state` or view state changes, so cached components
+  /// (see [OpenUiBlock]) rebuild then — some read state straight off the
+  /// scope rather than through their props.
+  var _stateVersion = 0;
 
   OpenUiLibrary get _library => widget.library ?? OpenUiLibrary.standard;
 
@@ -139,7 +158,44 @@ class _OpenUiViewState extends State<OpenUiView> {
         _form(f.key).restore(f.value);
       }
     }
-    _parse();
+    // A turn that streams in types out from the start; history renders
+    // whole.
+    _reveal.reset(
+      widget.program,
+      revealed: !(widget.smoothReveal && widget.isStreaming),
+    );
+    _parse(_reveal.visible);
+    _startReveal();
+  }
+
+  /// Streaming as far as the components know: until the reveal has caught
+  /// up, buttons stay disabled and new components ease in.
+  bool get _streaming => widget.isStreaming || !_reveal.done;
+
+  void _startReveal() {
+    final ticker = _ticker ??= createTicker(_tick);
+    if (_reveal.done || ticker.isActive) return;
+    _lastTick = Duration.zero;
+    _lastParse = Duration.zero;
+    ticker.start();
+  }
+
+  void _tick(Duration elapsed) {
+    final dt = elapsed - _lastTick;
+    _lastTick = elapsed;
+    final moved = _reveal.advance(dt, hurry: !widget.isStreaming);
+    // Parse at most ~30 times a second; the last step always lands.
+    if (moved &&
+        (_reveal.done ||
+            elapsed - _lastParse >= const Duration(milliseconds: 33))) {
+      _lastParse = elapsed;
+      setState(() => _parse(_reveal.visible));
+    }
+    if (_reveal.done) {
+      _ticker?.stop();
+      // The final frame flips `isStreaming` off for the components.
+      if (!widget.isStreaming) setState(() {});
+    }
   }
 
   OpenUiSnapshot get _snapshot => OpenUiSnapshot(
@@ -155,11 +211,21 @@ class _OpenUiViewState extends State<OpenUiView> {
   @override
   void didUpdateWidget(OpenUiView old) {
     super.didUpdateWidget(old);
-    if (widget.program != _source) _parse();
+    if (widget.program != _reveal.target) {
+      if (widget.smoothReveal && _streaming) {
+        _reveal.retarget(widget.program);
+      } else {
+        _reveal.reset(widget.program, revealed: true);
+      }
+    }
+    if (!widget.smoothReveal) _reveal.finish();
+    if (_reveal.visible != _source) _parse(_reveal.visible);
+    _startReveal();
   }
 
   @override
   void dispose() {
+    _ticker?.dispose();
     for (final form in _forms.values) {
       form.dispose();
     }
@@ -169,8 +235,8 @@ class _OpenUiViewState extends State<OpenUiView> {
   OpenUiEvaluator _evaluator() =>
       OpenUiEvaluator(_program, _state, signatures: _library.signatures);
 
-  void _parse() {
-    _source = widget.program;
+  void _parse(String source) {
+    _source = source;
     _program = OpenUiProgram.parse(_source);
     // Seed newly declared state; values the user already changed stay.
     for (final entry in _program.stateDefaults.entries) {
@@ -185,7 +251,10 @@ class _OpenUiViewState extends State<OpenUiView> {
   void _setVar(String name, Object? value) {
     if (!mounted || _state[name] == value) return;
     _pristine.remove(name);
-    setState(() => _state[name] = value);
+    setState(() {
+      _state[name] = value;
+      _stateVersion++;
+    });
     _emit();
   }
 
@@ -276,7 +345,7 @@ class _OpenUiViewState extends State<OpenUiView> {
       }
     }
     if (changed && mounted) {
-      setState(() {});
+      setState(() => _stateVersion++);
       _emit();
     }
   }
@@ -291,11 +360,12 @@ class _OpenUiViewState extends State<OpenUiView> {
     if (root == null) return const SizedBox.shrink();
     Widget child = OpenUiScope(
       library: _library,
-      isStreaming: widget.isStreaming,
+      isStreaming: _streaming,
       runAction: _run,
       setVar: _setVar,
       readVar: (name) => _state[name],
       form: _form,
+      stateVersion: _stateVersion,
       child: OpenUiBlock(root),
     );
     final theme = widget.theme;
@@ -314,6 +384,7 @@ class OpenUiScope extends InheritedWidget {
     required this.setVar,
     required this.readVar,
     required this.form,
+    this.stateVersion = 0,
     required super.child,
   });
 
@@ -337,6 +408,9 @@ class OpenUiScope extends InheritedWidget {
   /// and kept for the view's lifetime.
   final OpenUiFormController Function(String name) form;
 
+  /// Changes whenever the view's state does.
+  final int stateVersion;
+
   static OpenUiScope of(BuildContext context) {
     final scope = context.dependOnInheritedWidgetOfExactType<OpenUiScope>();
     assert(scope != null, 'openui components must render inside OpenUiView');
@@ -345,5 +419,7 @@ class OpenUiScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(OpenUiScope old) =>
-      isStreaming != old.isStreaming || library != old.library;
+      isStreaming != old.isStreaming ||
+      library != old.library ||
+      stateVersion != old.stateVersion;
 }

@@ -22,12 +22,12 @@ class OpenUiFlex extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final children = openUiFlatten(el['children']);
-    if (children.isEmpty) return const SizedBox.shrink();
     final gap = openUiGap(el['gap']);
     if (el.string('direction') != 'row') {
+      final slots = openUiSlots(el['children']);
+      if (slots.isEmpty) return const SizedBox.shrink();
       return OpenUiColumn(
-        children,
+        slots,
         gap: gap,
         cross: switch (el.string('align')) {
           'start' => CrossAxisAlignment.start,
@@ -38,6 +38,8 @@ class OpenUiFlex extends StatelessWidget {
       );
     }
 
+    final children = openUiFlatten(el['children']);
+    if (children.isEmpty) return const SizedBox.shrink();
     if (children.every((c) => openUiIsInline(context, c))) {
       return Wrap(
         spacing: gap,
@@ -695,6 +697,7 @@ class _OpenUiModalState extends State<OpenUiModal> {
               setVar: scope.setVar,
               readVar: scope.readVar,
               form: scope.form,
+              stateVersion: scope.stateVersion,
               child: Dialog(
                 backgroundColor: theme.surfaceRaised,
                 insetPadding: const EdgeInsets.all(16),

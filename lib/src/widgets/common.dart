@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../icons/icons.dart';
 import '../lang.dart';
+import '../library.dart';
 import '../theme.dart';
 import '../view.dart';
 import 'markdown.dart';
@@ -10,16 +11,55 @@ import 'markdown.dart';
 /// view's library), a list of them, or a bare literal. A component the
 /// library can't render degrades to its nested components and text (see
 /// [OpenUiFallback]) rather than leaving a hole.
-class OpenUiBlock extends StatelessWidget {
+class OpenUiBlock extends StatefulWidget {
   const OpenUiBlock(this.value, {super.key});
 
   final Object? value;
 
   @override
+  State<OpenUiBlock> createState() => _OpenUiBlockState();
+}
+
+/// The program is re-parsed on every streamed chunk, so every component
+/// gets a fresh (but usually identical) value. Handing Flutter back the very
+/// same widget when nothing changed lets it skip the whole subtree — charts,
+/// tables and images stay put while only the growing tail rebuilds.
+class _OpenUiBlockState extends State<OpenUiBlock> {
+  Object? _value;
+  Widget? _built;
+  bool? _streaming;
+  OpenUiLibrary? _library;
+  int? _version;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Theme, media or scope changed: builders may have read them through
+    // this context, so the cached widget can't be trusted.
+    _built = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final v = value;
+    final v = widget.value;
+    final scope = OpenUiScope.of(context);
+    final cached = _built;
+    if (cached != null &&
+        _streaming == scope.isStreaming &&
+        identical(_library, scope.library) &&
+        _version == scope.stateVersion &&
+        openUiSame(_value, v)) {
+      return cached;
+    }
+    _value = v;
+    _streaming = scope.isStreaming;
+    _library = scope.library;
+    _version = scope.stateVersion;
+    return _built = _build(context, v, scope);
+  }
+
+  static Widget _build(BuildContext context, Object? v, OpenUiScope scope) {
     if (v is OpenUiElement) {
-      final scope = OpenUiScope.of(context);
       final builder = scope.library.components[v.type]?.builder;
       return OpenUiAppear(
         animate: scope.isStreaming,
@@ -78,18 +118,39 @@ class OpenUiColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (children.length == 1) return OpenUiBlock(children.single);
+    // Always a Column, one slot per child, even for a single child or a
+    // child whose statement hasn't streamed in yet (null): each component
+    // keeps its element — and its state and entrance animation — as its
+    // siblings arrive, instead of being remounted when the list grows.
+    final slots = <Widget>[];
+    var seen = false;
+    for (final child in children) {
+      slots.add(
+        Padding(
+          padding: EdgeInsets.only(top: child != null && seen ? gap : 0),
+          child: OpenUiBlock(child),
+        ),
+      );
+      if (child != null) seen = true;
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: cross,
-      children: [
-        for (var i = 0; i < children.length; i++) ...[
-          if (i > 0) SizedBox(height: gap),
-          OpenUiBlock(children[i]),
-        ],
-      ],
+      children: slots,
     );
   }
+}
+
+/// A container's children as stable slots: nested lists flattened, but a
+/// child not evaluated yet (an unresolved reference mid-stream) kept as a
+/// null placeholder so later siblings don't shift position when it lands.
+List<Object?> openUiSlots(Object? v) {
+  if (v == null) return const [];
+  if (v is! List) return [v];
+  return [
+    for (final item in v)
+      if (item is List) ...openUiFlatten(item) else item,
+  ];
 }
 
 /// A rounded card surface: `card` (default), `sunk` or `clear`.

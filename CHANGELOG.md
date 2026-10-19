@@ -1,3 +1,15 @@
+## 0.1.4
+
+- Smooth streaming: while a view streams, text types out at a steady pace,
+  frame by frame, instead of landing in network-sized chunks; structure
+  (components, numbers, references) appears instantly. The pace adapts to
+  the backlog and drains quickly once the stream ends. Opt out with
+  `OpenUiView(smoothReveal: false)`.
+- Components that didn't change are no longer rebuilt on every streamed
+  chunk (`openUiSame`, structural equality of evaluated values).
+- Containers keep stable child slots while streaming, so a component keeps
+  its state and entrance animation as its siblings arrive.
+
 ## 0.1.3
 
 - Fix: build failed with flutter_lucide 1.59 ("Member not found: 'music'"),
