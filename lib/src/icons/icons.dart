@@ -30,7 +30,7 @@ const _categoryFallbacks = <String, String>{
   'mail': 'mail',
   'math': 'calculator',
   'medical': 'heart-pulse',
-  'multimedia': 'music',
+  'multimedia': 'eighth-notes',
   'nature': 'tree-pine',
   'navigation': 'map-pin',
   'notifications': 'bell',
@@ -64,7 +64,7 @@ const _categoryFallbacks = <String, String>{
   'location': 'map-pin',
   'date': 'calendar',
   'media': 'play',
-  'music': 'music',
+  'music': 'eighth-notes',
   'analytics': 'chart-column',
   'data': 'database',
   'status': 'circle-check',
@@ -98,6 +98,11 @@ const _renamed = {
   'smile': 'face-slightly-smiling',
   'smile-plus': 'face-slightly-smiling-plus',
   'layout': 'layout-dashboard',
+  // flutter_lucide 1.59 replaced the music icons with note names.
+  'music': 'eighth-notes',
+  'music-2': 'eighth-note',
+  'music-3': 'eighth-note',
+  'music-4': 'sixteenth-notes',
 };
 
 IconData? _swapShape(String key) {

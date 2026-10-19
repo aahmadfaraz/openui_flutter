@@ -559,6 +559,31 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
     });
 
+    test('every category fallback and renamed icon still resolves', () {
+      // Guards the generated name map against flutter_lucide renames
+      // (1.59 replaced music*): each must find a real icon, not the dot.
+      const categories = [
+        'accessibility', 'account', 'animals', 'arrows', 'brands',
+        'buildings', 'charts', 'communication', 'connectivity', 'cursors',
+        'design', 'development', 'devices', 'emoji', 'files', 'finance',
+        'food-beverage', 'gaming', 'home', 'layout', 'mail', 'math',
+        'medical', 'multimedia', 'nature', 'navigation', 'notifications',
+        'people', 'photography', 'science', 'seasons', 'security', 'shapes',
+        'shopping', 'social', 'sports', 'sustainability', 'text', 'time',
+        'tools', 'transportation', 'travel', 'weather', 'music',
+      ];
+      for (final c in categories) {
+        expect(
+          openUiIcon('no-such-icon', category: c),
+          isNot(LucideIcons.circle_dot),
+          reason: c,
+        );
+      }
+      for (final name in ['music', 'music-2', 'music-3', 'music-4', 'smile']) {
+        expect(openUiIcon(name), isNot(LucideIcons.circle_dot), reason: name);
+      }
+    });
+
     test('icons follow upstream category fallbacks and renames', () {
       expect(openUiIcon('smile'), isNot(LucideIcons.circle_dot));
       expect(

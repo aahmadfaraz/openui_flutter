@@ -1,3 +1,10 @@
+## 0.1.3
+
+- Fix: build failed with flutter_lucide 1.59 ("Member not found: 'music'"),
+  which renamed the music icons. Icon names regenerated from 1.59, the old
+  `music*` names kept as aliases, and flutter_lucide pinned to 1.59.x since
+  it renames icons in minor releases.
+
 ## 0.1.2
 
 - LICENSE names the copyright holder (Ahmad Faraz).
