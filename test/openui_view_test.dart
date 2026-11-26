@@ -64,6 +64,22 @@ void main() {
     view.resetDevicePixelRatio();
   });
 
+  testWidgets('EntityList values all end on the right edge, short or wrapped',
+      (tester) async {
+    await _pump(
+      tester,
+      'root = EntityList(rows, "small")\n'
+      'rows = [{ left: "Best For", right: "Gaming, Pro video & the iOS ecosystem and more" }, '
+      '{ left: "Performance", right: "Fast" }]',
+    );
+    expect(tester.takeException(), isNull);
+    final shortRight = tester.getTopRight(find.text('Fast')).dx;
+    final wrappedRight = tester
+        .getTopRight(find.textContaining('Gaming, Pro video'))
+        .dx;
+    expect((shortRight - wrappedRight).abs(), lessThan(1));
+  });
+
   testWidgets('renders the budget answer as native components', (tester) async {
     final sent = <String>[];
     await _pump(tester, splitOpenUi(budgetAnswer).program!, sent: sent);

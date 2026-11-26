@@ -197,7 +197,10 @@ class OpenUiEntityList extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Both sides wrap; a long value takes up to ~60% of the row.
+            // Both sides wrap; the value takes ~60% of the row. Expanded,
+            // not Flexible: a loose value sat wherever its text ended, so a
+            // short one floated mid-row while a wrapped one met the right
+            // edge — every value now ends on that edge.
             Expanded(
               flex: 2,
               child: OpenUiInlineMarkdown(
@@ -206,7 +209,7 @@ class OpenUiEntityList extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Flexible(
+            Expanded(
               flex: 3,
               child: OpenUiInlineMarkdown(
                 openUiToText(r['right']),

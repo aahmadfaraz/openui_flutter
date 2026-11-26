@@ -1,3 +1,9 @@
+## 0.1.5
+
+- Fix: `EntityList` values now all end on the row's right edge. A short
+  value used to sit right after the label column while a wrapped one met
+  the edge, so the values of one list didn't line up.
+
 ## 0.1.4
 
 - Smooth streaming: while a view streams, text types out at a steady pace,
